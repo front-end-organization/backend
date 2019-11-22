@@ -108,3 +108,6 @@ venv.bak/
 
 # picture
 storage/*.jpg
+
+# model
+model.pth
