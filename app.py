@@ -1,20 +1,11 @@
-import os
+import os, base64, time
 from flask import Flask, flash, request, redirect, url_for, jsonify
 from werkzeug.utils import secure_filename
+from net import Model
+
+model = Model()
 
 app = Flask(__name__)
-
-# @app.route('/name', methods=['GET', 'POST'])
-# def js_call():
-#     if request.method == 'POST':
-#         first_name = request.json['first_name']
-#         last_name = request.json['last_name']
-#         print("{} {}".format(first_name, last_name))
-#         return jsonify({'status': 'Received'})
-#     if request.method == 'GET':
-#         t = {'status': 'Sent'}
-#         return jsonify(t)
-
 
 UPLOAD_FOLDER = './storage'
 ALLOWED_EXTENSIONS = {'txt', 'pdf', 'png', 'jpg', 'jpeg', 'gif'}
@@ -29,21 +20,24 @@ def allowed_file(filename):
 @app.route('/upload', methods=['GET', 'POST'])
 def upload_file():
     if request.method == 'POST':
-        # check if the post request has the file part
-        if 'file' not in request.files:
-            flash('No file part')
-            return redirect(request.url)
-        file = request.files['file']
-        # if user does not select file, browser also
-        # submit an empty part without filename
-        if file.filename == '':
-            flash('No selected file')
-            return redirect(request.url)
+        img_base64 = request.form.get('imageData')
+        img_jpg = base64.b64decode(img_base64)
+        now = time.strftime("%Y-%m-%d-%H_%M_%S",time.localtime(time.time())) 
+        filename = now + '.jpg'
+        filename = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+        file = open(filename, 'wb')
+        file.write(img_jpg)
+        file.close()
 
-        if file and allowed_file(file.filename):
-            filename = secure_filename(file.filename)
-            file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
-            # return redirect(url_for('uploaded_file',
-            #                         filename=filename))
-            message = {"Status": "Uploaded"}
-            return jsonify(message)
+        pred_boxes, pred_class, pred_score = model.prediction(filename, 0.8)
+        dict = {}
+        dict['data'] = []
+        for i in range(len(pred_boxes)):
+            item = {
+                'class': pred_class[i],
+                'box': pred_boxes[i],
+                'score': pred_score[i]
+            }
+            dict['data'].append(item)
+        
+        return jsonify(dict)
